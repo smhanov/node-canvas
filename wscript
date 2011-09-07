@@ -20,8 +20,10 @@ def configure(conf):
   if conf.check(lib='gif', libpath=['/lib', '/usr/lib', '/usr/local/lib'], uselib_store='GIF', mandatory=False):
     conf.env.append_value('CPPFLAGS', '-DHAVE_GIF=1')
 
-  if conf.check(lib='jpeg', libpath=['/lib', '/usr/lib', '/usr/local/lib'], uselib_store='JPEG', mandatory=False):
-    conf.env.append_value('CPPFLAGS', '-DHAVE_JPEG=1')
+  #Ignore jpeg. node-canvas uses a more up to date jpeg library, so it does not
+  #work on Ubuntu 10.04.
+  #if conf.check(lib='jpeg', libpath=['/lib', '/usr/lib', '/usr/local/lib'], uselib_store='JPEG', mandatory=False):
+  #  conf.env.append_value('CPPFLAGS', '-DHAVE_JPEG=1')
 
   if conf.env['USE_PROFILING'] == True:
     conf.env.append_value('CXXFLAGS', ['-pg'])
