@@ -73,6 +73,7 @@ Context2d::Initialize(Handle<Object> target) {
   NODE_SET_PROTOTYPE_METHOD(constructor, "fill", Fill);
   NODE_SET_PROTOTYPE_METHOD(constructor, "stroke", Stroke);
   NODE_SET_PROTOTYPE_METHOD(constructor, "fillText", FillText);
+  NODE_SET_PROTOTYPE_METHOD(constructor, "getTextOutline", GetTextOutline);
   NODE_SET_PROTOTYPE_METHOD(constructor, "strokeText", StrokeText);
   NODE_SET_PROTOTYPE_METHOD(constructor, "fillRect", FillRect);
   NODE_SET_PROTOTYPE_METHOD(constructor, "strokeRect", StrokeRect);
@@ -125,7 +126,7 @@ Context2d::Context2d(Canvas *canvas) {
   state->globalAlpha = 1;
   state->textAlignment = -1;
   state->fillPattern = state->strokePattern = NULL;
-  state->textBaseline = NULL;
+  state->textBaseline = 0;
   rgba_t transparent = { 0,0,0,1 };
   rgba_t transparent_black = { 0,0,0,0 };
   state->fill = transparent;
@@ -1190,6 +1191,71 @@ Context2d::BezierCurveTo(const Arguments &args) {
     , args[5]->NumberValue());
 
   return Undefined();
+}
+
+/*
+ * Get text outline
+ */
+
+Handle<Value>
+Context2d::GetTextOutline(const Arguments &args) {
+  HandleScope scope;
+
+  if (!args[0]->IsNumber() ||
+      !args[1]->IsNumber() || 
+      !args[2]->IsNumber() ) return Undefined();
+
+  String::Utf8Value str(args[0]->ToString());
+  double x = args[1]->NumberValue();
+  double y = args[2]->NumberValue();
+
+  Context2d *context = ObjectWrap::Unwrap<Context2d>(args.This());
+  context->savePath();
+  context->setTextPath(*str, x, y);
+  
+  cairo_path_t* path;
+  cairo_path_data_t* data;
+
+  Local<Array> results = Array::New();
+
+  path = cairo_copy_path( context->context() );
+  int j = 0;
+
+  for( int i = 0; i < path->num_data; i+= path->data[i].header.length ) {
+    data = &path->data[i];
+    switch( data->header.type ) {
+        case CAIRO_PATH_MOVE_TO:
+            results->Set( j++, Number::New( 0 ) );
+            results->Set( j++, Number::New( data[1].point.x ) );
+            results->Set( j++, Number::New( data[1].point.y ) );
+            break;
+
+        case CAIRO_PATH_LINE_TO:
+            results->Set( j++, Number::New( 1 ) );
+            results->Set( j++, Number::New( data[1].point.x ) );
+            results->Set( j++, Number::New( data[1].point.y ) );
+            break;
+            
+        case CAIRO_PATH_CURVE_TO:
+            results->Set( j++, Number::New( 2 ) );
+            results->Set( j++, Number::New( data[1].point.x ) );
+            results->Set( j++, Number::New( data[1].point.y ) );
+            results->Set( j++, Number::New( data[2].point.x ) );
+            results->Set( j++, Number::New( data[2].point.y ) );
+            results->Set( j++, Number::New( data[3].point.x ) );
+            results->Set( j++, Number::New( data[3].point.y ) );
+            break;
+
+        case CAIRO_PATH_CLOSE_PATH:
+            results->Set( j++, Number::New( 3 ) );
+            break;
+    }
+  }
+
+  cairo_path_destroy( path );
+  context->restorePath();
+
+  return scope.Close( results );
 }
 
 /*
