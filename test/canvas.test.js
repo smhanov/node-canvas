@@ -372,6 +372,31 @@ module.exports = {
     assert.equal(6, imageData.height);
     assert.equal(2 * 6 * 4, imageData.data.length);
   },
+
+  'test Context2d#getTextOutline(str, x, y)': function() {
+    var canvas = new Canvas(20, 20)
+        , ctx = canvas.getContext('2d');
+
+    var path = ctx.getTextOutline("Hello", 0, 0);
+    // First element should be a move_to
+    assert.equal(0, path[0]);
+    // All commands should be one of MOVE_TO, LINE_TO, CURVE_TO, or CLOSE_PATH
+    for( var i = 0; i < path.length; ) {
+        switch( path[i] ) {
+            // MOVE_TO command has x,y
+            case 0: i += 3; break;
+            // LINE_TO command has x,y
+            case 1: i += 3; break;
+            // CURVE_TO command has x,y,x,y,x,y
+            case 2: i += 7; break;
+            // CLOSE_PATH command has no points.
+            case 3: i += 1; break;
+            default: break;
+        }
+    }
+    // We should have gotten to the end of the path with no errors.
+    assert.equal(i, path.length);
+  },
   
   'test Context2d#getImageData()': function(){
     var canvas = new Canvas(3, 6)

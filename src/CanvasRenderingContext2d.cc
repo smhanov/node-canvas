@@ -1201,8 +1201,7 @@ Handle<Value>
 Context2d::GetTextOutline(const Arguments &args) {
   HandleScope scope;
 
-  if (!args[0]->IsNumber() ||
-      !args[1]->IsNumber() || 
+  if (!args[1]->IsNumber() || 
       !args[2]->IsNumber() ) return Undefined();
 
   String::Utf8Value str(args[0]->ToString());
