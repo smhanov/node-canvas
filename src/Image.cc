@@ -14,6 +14,7 @@
 
 #ifdef HAVE_JPEG
 #include <jpeglib.h>
+#include <jerror.h>
 #endif
 
 #ifdef HAVE_GIF
@@ -51,7 +52,7 @@ Image::Initialize(Handle<Object> target) {
 
   // Prototype
   Local<ObjectTemplate> proto = constructor->PrototypeTemplate();
-  proto->SetAccessor(String::NewSymbol("src"), GetSrc, SetSrc);
+  proto->SetAccessor(String::NewSymbol("source"), GetSource, SetSource);
   proto->SetAccessor(String::NewSymbol("complete"), GetComplete);
   proto->SetAccessor(String::NewSymbol("width"), GetWidth);
   proto->SetAccessor(String::NewSymbol("height"), GetHeight);
@@ -109,7 +110,7 @@ Image::GetHeight(Local<String>, const AccessorInfo &info) {
  */
 
 Handle<Value>
-Image::GetSrc(Local<String>, const AccessorInfo &info) {
+Image::GetSource(Local<String>, const AccessorInfo &info) {
   HandleScope scope;
   Image *img = ObjectWrap::Unwrap<Image>(info.This());
   return scope.Close(String::New(img->filename ? img->filename : ""));
@@ -120,7 +121,7 @@ Image::GetSrc(Local<String>, const AccessorInfo &info) {
  */
 
 void
-Image::SetSrc(Local<String>, Local<Value> val, const AccessorInfo &info) {
+Image::SetSource(Local<String>, Local<Value> val, const AccessorInfo &info) {
   HandleScope scope;
   Image *img = ObjectWrap::Unwrap<Image>(info.This());
   cairo_status_t status = CAIRO_STATUS_READ_ERROR;
@@ -315,27 +316,35 @@ Image::error(Local<Value> err) {
 /*
  * Load cairo surface from the image src.
  * 
- * TODO: better format detection
  * TODO: support more formats
  * TODO: use node IO or at least thread pool
  */
 
 cairo_status_t
 Image::loadSurface() {
-  switch (extension(filename)) {
-    case Image::PNG:
-      return loadPNG();
-#ifdef HAVE_GIF
-    case Image::GIF:
-      return loadGIF();
-#endif
-#ifdef HAVE_JPEG
-    case Image::JPEG:
-      return loadJPEG();
-#endif
-    default:
-      return CAIRO_STATUS_READ_ERROR;
+  FILE *stream = fopen(filename, "r");
+  if (!stream) return CAIRO_STATUS_READ_ERROR;
+  uint8_t buf[5];
+  if (1 != fread(&buf, 5, 1, stream)) return CAIRO_STATUS_READ_ERROR;
+  fseek(stream, 0, SEEK_SET);
+
+  // png
+  if (isPNG(buf)) {
+    fclose(stream);
+    return loadPNG();
   }
+
+  // gif
+#ifdef HAVE_GIF
+  if (isGIF(buf)) return loadGIF(stream);
+#endif
+
+  // jpeg
+#ifdef HAVE_JPEG
+  if (isJPEG(buf)) return loadJPEG(stream);
+#endif
+
+  return CAIRO_STATUS_READ_ERROR;
 }
 
 /*
@@ -386,10 +395,7 @@ read_gif_from_memory(GifFileType *gif, GifByteType *buf, int len) {
  */
 
 cairo_status_t
-Image::loadGIF() {
-  FILE *stream = fopen(filename, "r");
-  if (!stream) return CAIRO_STATUS_READ_ERROR;
-
+Image::loadGIF(FILE *stream) {
   fseek(stream, 0L, SEEK_END);
   int len = ftell(stream);
   fseek(stream, 0L, SEEK_SET);
@@ -542,6 +548,50 @@ Image::loadGIFFromBuffer(uint8_t *buf, unsigned len) {
 
 #ifdef HAVE_JPEG
 
+// libjpeg 6.2 does not have jpeg_mem_src; define it ourselves here unless
+// libjpeg 8 is installed.
+#if JPEG_LIB_VERSION < 80
+
+/* Read JPEG image from a memory segment */
+static void
+init_source(j_decompress_ptr cinfo) {}
+
+static boolean
+fill_input_buffer(j_decompress_ptr cinfo) {
+  ERREXIT(cinfo, JERR_INPUT_EMPTY);
+  return TRUE;
+}
+static void
+skip_input_data(j_decompress_ptr cinfo, long num_bytes) {
+  struct jpeg_source_mgr* src = (struct jpeg_source_mgr*) cinfo->src;
+  if (num_bytes > 0) {
+    src->next_input_byte += (size_t) num_bytes;
+    src->bytes_in_buffer -= (size_t) num_bytes;
+  }
+}
+
+static void term_source (j_decompress_ptr cinfo) {}
+static void jpeg_mem_src (j_decompress_ptr cinfo, void* buffer, long nbytes) {
+  struct jpeg_source_mgr* src;
+
+  if (cinfo->src == NULL) {
+    cinfo->src = (struct jpeg_source_mgr *)
+      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
+                                  sizeof(struct jpeg_source_mgr));
+  }
+
+  src = (struct jpeg_source_mgr*) cinfo->src;
+  src->init_source = init_source;
+  src->fill_input_buffer = fill_input_buffer;
+  src->skip_input_data = skip_input_data;
+  src->resync_to_restart = jpeg_resync_to_restart; /* use default method */
+  src->term_source = term_source;
+  src->bytes_in_buffer = nbytes;
+  src->next_input_byte = (JOCTET*)buffer;
+}
+
+#endif
+
 /*
  * Load jpeg from buffer.
  */
@@ -612,10 +662,7 @@ Image::loadJPEGFromBuffer(uint8_t *buf, unsigned len) {
  */
 
 cairo_status_t
-Image::loadJPEG() {
-  FILE *stream = fopen(filename, "r");
-  if (!stream) return CAIRO_STATUS_READ_ERROR;
-
+Image::loadJPEG(FILE *stream) {
   // JPEG setup
   struct jpeg_decompress_struct info;
   struct jpeg_error_mgr err;

@@ -1,4 +1,42 @@
 
+0.8.3 / 2012-01-04 
+==================
+
+  * Added support for libjpeg62-dev or libjpeg8-dev [wwlinx]
+
+0.8.2 / 2011-12-14 
+==================
+
+  * Fixed two memory leaks in context2d [Tharit]
+  * Fixed `make test-server`
+
+0.8.1 / 2011-10-31 
+==================
+
+  * Added 0.5.x support [TooTallNate]
+  * Fixed `measureText().width`. Closes #126
+
+0.8.0 / 2011-10-28 
+==================
+
+  * Added data uri support. Closes #49
+
+0.7.3 / 2011-09-14 
+==================
+
+  * Added better lineTo() / moveTo() exception messages
+
+0.7.2 / 2011-08-30 
+==================
+
+  * Changed: prefix some private methods with _
+
+0.7.1 / 2011-08-25 
+==================
+
+  * Added better image format detection
+  * Added libpath options to waf configuration; this was necessary to correctly detect gif and jpeg support on FreeBSD
+
 0.7.0 / 2011-07-12 
 ==================
 

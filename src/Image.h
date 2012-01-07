@@ -19,13 +19,13 @@ class Image: public node::ObjectWrap {
     static Persistent<FunctionTemplate> constructor;
     static void Initialize(Handle<Object> target);
     static Handle<Value> New(const Arguments &args);
-    static Handle<Value> GetSrc(Local<String> prop, const AccessorInfo &info);
+    static Handle<Value> GetSource(Local<String> prop, const AccessorInfo &info);
     static Handle<Value> GetOnload(Local<String> prop, const AccessorInfo &info);
     static Handle<Value> GetOnerror(Local<String> prop, const AccessorInfo &info);
     static Handle<Value> GetComplete(Local<String> prop, const AccessorInfo &info);
     static Handle<Value> GetWidth(Local<String> prop, const AccessorInfo &info);
     static Handle<Value> GetHeight(Local<String> prop, const AccessorInfo &info);
-    static void SetSrc(Local<String> prop, Local<Value> val, const AccessorInfo &info);
+    static void SetSource(Local<String> prop, Local<Value> val, const AccessorInfo &info);
     static void SetOnload(Local<String> prop, Local<Value> val, const AccessorInfo &info);
     static void SetOnerror(Local<String> prop, Local<Value> val, const AccessorInfo &info);
     inline cairo_surface_t *surface(){ return _surface; } 
@@ -42,11 +42,11 @@ class Image: public node::ObjectWrap {
     cairo_status_t loadPNG();
 #ifdef HAVE_GIF
     cairo_status_t loadGIFFromBuffer(uint8_t *buf, unsigned len);
-    cairo_status_t loadGIF();
+    cairo_status_t loadGIF(FILE *stream);
 #endif
 #ifdef HAVE_JPEG
     cairo_status_t loadJPEGFromBuffer(uint8_t *buf, unsigned len);
-    cairo_status_t loadJPEG();
+    cairo_status_t loadJPEG(FILE *stream);
 #endif
     void error(Local<Value> error);
     void loaded();

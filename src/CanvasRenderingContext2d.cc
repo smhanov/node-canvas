@@ -79,8 +79,6 @@ Context2d::Initialize(Handle<Object> target) {
   NODE_SET_PROTOTYPE_METHOD(constructor, "strokeRect", StrokeRect);
   NODE_SET_PROTOTYPE_METHOD(constructor, "clearRect", ClearRect);
   NODE_SET_PROTOTYPE_METHOD(constructor, "rect", Rect);
-  NODE_SET_PROTOTYPE_METHOD(constructor, "setTextBaseline", SetTextBaseline);
-  NODE_SET_PROTOTYPE_METHOD(constructor, "setTextAlignment", SetTextAlignment);
   NODE_SET_PROTOTYPE_METHOD(constructor, "measureText", MeasureText);
   NODE_SET_PROTOTYPE_METHOD(constructor, "moveTo", MoveTo);
   NODE_SET_PROTOTYPE_METHOD(constructor, "lineTo", LineTo);
@@ -90,11 +88,13 @@ Context2d::Initialize(Handle<Object> target) {
   NODE_SET_PROTOTYPE_METHOD(constructor, "closePath", ClosePath);
   NODE_SET_PROTOTYPE_METHOD(constructor, "arc", Arc);
   NODE_SET_PROTOTYPE_METHOD(constructor, "arcTo", ArcTo);
-  NODE_SET_PROTOTYPE_METHOD(constructor, "setFont", SetFont);
-  NODE_SET_PROTOTYPE_METHOD(constructor, "setFillColor", SetFillColor);
-  NODE_SET_PROTOTYPE_METHOD(constructor, "setStrokeColor", SetStrokeColor);
-  NODE_SET_PROTOTYPE_METHOD(constructor, "setFillPattern", SetFillPattern);
-  NODE_SET_PROTOTYPE_METHOD(constructor, "setStrokePattern", SetStrokePattern);
+  NODE_SET_PROTOTYPE_METHOD(constructor, "_setFont", SetFont);
+  NODE_SET_PROTOTYPE_METHOD(constructor, "_setFillColor", SetFillColor);
+  NODE_SET_PROTOTYPE_METHOD(constructor, "_setStrokeColor", SetStrokeColor);
+  NODE_SET_PROTOTYPE_METHOD(constructor, "_setFillPattern", SetFillPattern);
+  NODE_SET_PROTOTYPE_METHOD(constructor, "_setStrokePattern", SetStrokePattern);
+  NODE_SET_PROTOTYPE_METHOD(constructor, "_setTextBaseline", SetTextBaseline);
+  NODE_SET_PROTOTYPE_METHOD(constructor, "_setTextAlignment", SetTextAlignment);
   proto->SetAccessor(String::NewSymbol("patternQuality"), GetPatternQuality, SetPatternQuality);
   proto->SetAccessor(String::NewSymbol("globalCompositeOperation"), GetGlobalCompositeOperation, SetGlobalCompositeOperation);
   proto->SetAccessor(String::NewSymbol("globalAlpha"), GetGlobalAlpha, SetGlobalAlpha);
@@ -140,6 +140,9 @@ Context2d::Context2d(Canvas *canvas) {
  */
 
 Context2d::~Context2d() {
+  while(stateno >= 0) {
+    free(states[stateno--]);
+  }
   cairo_destroy(_context);
 }
 
@@ -206,6 +209,7 @@ void
 Context2d::restorePath() {
   cairo_new_path(_context);
   cairo_append_path(_context, _path);
+  cairo_path_destroy(_path);
 }
 
 /*
@@ -527,7 +531,7 @@ Context2d::DrawImage(const Arguments &args) {
   if (Image::constructor->HasInstance(obj)) {
     Image *img = ObjectWrap::Unwrap<Image>(obj);
     if (!img->isComplete()) {
-      return ThrowException(Exception::Error(String::New("Image given has not completed loaded")));
+      return ThrowException(Exception::Error(String::New("Image given has not completed loading")));
     }
     sw = img->width;
     sh = img->height;
@@ -1562,9 +1566,9 @@ Context2d::LineTo(const Arguments &args) {
   HandleScope scope;
 
   if (!args[0]->IsNumber()) 
-    return ThrowException(Exception::TypeError(String::New("x required")));
+    return ThrowException(Exception::TypeError(String::New("lineTo() x must be a number")));
   if (!args[1]->IsNumber()) 
-    return ThrowException(Exception::TypeError(String::New("y required")));
+    return ThrowException(Exception::TypeError(String::New("lineTo() y must be a number")));
 
   Context2d *context = ObjectWrap::Unwrap<Context2d>(args.This());
   cairo_line_to(context->context()
@@ -1583,9 +1587,9 @@ Context2d::MoveTo(const Arguments &args) {
   HandleScope scope;
 
   if (!args[0]->IsNumber()) 
-    return ThrowException(Exception::TypeError(String::New("x required")));
+    return ThrowException(Exception::TypeError(String::New("moveTo() x must be a number")));
   if (!args[1]->IsNumber()) 
-    return ThrowException(Exception::TypeError(String::New("y required")));
+    return ThrowException(Exception::TypeError(String::New("moveTo() y must be a number")));
 
   Context2d *context = ObjectWrap::Unwrap<Context2d>(args.This());
   cairo_move_to(context->context()
@@ -1662,7 +1666,7 @@ Context2d::MeasureText(const Arguments &args) {
 
   cairo_text_extents_t te;
   cairo_text_extents(ctx, *str, &te);
-  obj->Set(String::New("width"), Number::New(te.width));
+  obj->Set(String::New("width"), Number::New(te.x_advance));
 
   return scope.Close(obj);
 }
